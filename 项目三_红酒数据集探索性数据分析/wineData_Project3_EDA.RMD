@@ -1,0 +1,1158 @@
+---
+title: "红葡萄酒质量探索"
+author: "郑义铭"
+date: "`r format(Sys.time(), '%Y年%m月%d日')`"
+output: 
+        html_document:
+                highlight: haddock
+                theme: readable
+                toc: yes
+---
+
+```{r gbobal_options,include=FALSE }
+# echo = FALSE: to hide R source code in the output file.
+# message=FALSE: to hide message emitted by ```message()``` in the output file.
+# warning=FALSE to hide warnings(produced by ```warning()```)in the  output file.
+knitr::opts_chunk$set(echo=FALSE,message = FALSE,warning = FALSE )
+
+```
+
+
+
+# 加载必要的库、红酒数据集    
+
+```{r message = FALSE, warning = FALSE, echo = FALSE }
+
+# 加载你最终使用的所有组件
+Sys.setlocale('LC_ALL','C')
+# install.packages("corrplot")
+library(corrplot)
+library(ggplot2)
+library(GGally)  
+library(gridExtra)
+library(reshape2)
+library(dplyr )
+wineQuantity <- read.csv("wineQualityReds.csv")
+rawWineQuantity <-read.csv("wineQualityReds.csv")
+```
+
+
+## 观察数据集的概略
+先观察一下数据框的概略
+
+```{r}
+summary(wineQuantity) # 先观察一下数据框的概略
+str(wineQuantity)
+names(wineQuantity)
+```
+
+## 发现quality和X的数据类型与其他的变量不同，他们都为int，预览一下这两个变量
+因为X共有1599个，又都是整数，所以推测X是观测值的唯一性标志就是id的意思
+而quality 为评分，也都是整数，所以可以把这两个变量的类型都转化成facotr比较合适
+
+
+```{r}
+summary(wineQuantity$X)  
+# 因为X共有1599个，又都是整数，所以推测X是观测值的唯一性标志就是id的意思
+
+table(wineQuantity$quality) 
+summary(wineQuantity$quality) 
+#而quality 为评分，也都是整数，所以可以把这两个变量的类型都转化成facotr比较合适
+
+```
+
+## 理解各个字段的含义，并且绘制ggpair矩阵图
+X 应该是id
+fixed.acidity 固定酸
+volatile.acidity  挥发性酸
+citric.acid 柠檬酸
+residual.sugar 残留糖
+chlorides 氯化物
+free.sulfur.dioxide  游离二氧化硫
+total.sulfur.dioxide 合计二氧化硫
+density 密度，浓度，稠度
+pH 酸碱度的指标
+sulphates  硫酸盐
+alcohol 酒精
+quality 品质
+
+```{r fig.height=12, fig.width=16, message=FALSE, warning=FALSE}
+myvars <- c("fixed.acidity", "volatile.acidity","citric.acid",'residual.sugar',
+            'chlorides','free.sulfur.dioxide',"total.sulfur.dioxide","density",
+            "pH","sulphates","alcohol","quality")
+pf_subset <- wineQuantity[myvars] 
+ggpairs(pf_subset,
+upper = list(continuous = "cor", combo = "box", discrete = "facetbar"),
+lower = list(continuous = "points", combo = "facethist", discrete = "facetbar"),
+diag = list(continuous = "densityDiag", discrete = "barDiag")
+)+ggtitle("View the Data")
+
+```
+
+
+由上图可以看出，相关性很强的两个变量有下面这些，待会做多变量分析的时候需要注不要
+互相干扰，影响结果。因为总共有13个变量，还是比较多的， 我们从中抽取一些可能影响
+比较大的变量来进行分析，分别是：
+1.residual.sugar 残留糖
+2.chlorides 氯化物
+3. free.sulfur.dioxide  游离二氧化硫
+4.total.sulfur.dioxide 合计二氧化硫
+5.volatile.acidity  挥发性酸
+6.sulphates  硫酸盐
+7.density 密度，浓度，稠度
+8.pH
+9.fixed.acidity 固定酸
+10.citric.acid 柠檬酸
+12.quality 品质
+11.alcohol 酒精
+12.quality 品质
+
+
+## 改变quality和x的数据类型
+
+```{r}
+wineQuantity$X <- factor(wineQuantity$X)
+wineQuantity$quality <- factor(wineQuantity$quality)
+str(wineQuantity)
+```  
+
+# 单变量分析
+
+
+下面开始单变量的分析，刚一映入眼帘的时候，个人对chlorides（氯化物）
+和free.sulfur.dioxide（游离二氧化硫）和total.sulfur.dioxide (合计二氧化硫)比较感兴趣，因为氯化物一般让我想到食盐，或者是无味道的物质，然后二
+氧化硫，这种大气主要污染物之一，也对红酒品质有影响吗？于是我们来观察一下
+
+## 1.chlorides（氯化物）
+我们先对chlorides（氯化物）进行探索
+
+```{r}
+ggplot(data=wineQuantity,aes(x=chlorides))+
+  geom_histogram()+
+  geom_freqpoly(color="red")+
+  labs( x = "chlorides (mg/l)",
+        title = "View the chlorides")
+```
+
+上图可见大部分集中在0~0.2之间，于是我们调整一下x轴和组距
+调整后的图像比较像是正太分布了，然后我们顺便看看他和quality是否有关系。
+看了概略后觉得这个变量还是和quality有影响的，具体双变量分析时再来观察。
+
+这样调整以后分布比较像正太分布
+
+```{r}
+ggplot(data=wineQuantity,aes(x=chlorides))+geom_histogram(binwidth = 0.001)+
+  geom_freqpoly(color="red",binwidth=0.001) +xlim(0,0.2)+
+  ggtitle("View the chlorides 2")
+# 
+
+
+```
+
+
+
+## 2.free.sulfur.dioxide
+free.sulfur.dioxide 和 total.sulfur.dioxide 这两个变量之间根据上图ggpair中相关性
+大小可知道为0.668 的强相关关系由下图调整过的图形看（第二个图），除了第7的位置有
+一个比较高的峰值，然后整体比较均衡
+
+可以看出主要分布在0到20之间这样，然后我们调整x轴截距为0到20
+
+
+```{r}
+ggplot(data=wineQuantity,aes(x=free.sulfur.dioxide))+
+  geom_histogram()+
+  geom_freqpoly(color="red")+
+  labs( x = "free.sulfur.dioxide (mg/l)",
+        title = "View the free.sulfur.dioxide")
+ggplot(data=wineQuantity,aes(x=free.sulfur.dioxide))+
+  geom_histogram(binwidth = 1)+
+  geom_freqpoly(color="red")+xlim(0,20)+
+  labs( x = "free.sulfur.dioxide (mg/l)",
+        title = "View the free.sulfur.dioxide")
+
+max(wineQuantity$free.sulfur.dioxide)
+
+```
+
+## 3.total.sulfur.dioxide
+然后经过查阅资料，才发现原来红酒中加入二氧化硫是为了创造酸性环境抑制别的酵母菌外
+的菌落的生长作用的，所以一般160毫克/升。然后整体比较均衡，而在by函数中的输出中看
+均值和中位数在不同品质中的差异同样也不是很大，所以再根据查询到用途，猜测这个量和
+品质可能没那么多的关系，不过溶于红酒中的量都需要达到合格的标准。
+参考
+https://www.thekitchn.com/the-truth-about-sulfites-in-wine-myths-of-red-wine-headaches-100878
+
+```{r}
+ggplot(data=wineQuantity,aes(x=total.sulfur.dioxide))+
+  geom_histogram()+
+  geom_freqpoly(color="red")+
+  labs( x = "total.sulfur.dioxide (mg/l)",
+        title = "View the total.sulfur.dioxide")
+
+ggplot(data=wineQuantity,aes(x=total.sulfur.dioxide))+
+  geom_histogram(binwidth = 1)+
+  geom_freqpoly(color="red",binwidth = 1)+
+  xlim(0,100)+
+  labs( x = "total.sulfur.dioxide (mg/l)",
+        title = "View the total.sulfur.dioxide")
+# 调整后
+
+
+by(wineQuantity$free.sulfur.dioxide,wineQuantity$quality,summary)  
+
+```
+
+
+## 4.sulphates  硫酸盐
+经过搜索资料发现，葡萄酒中的亚硫酸盐一般来自于自然产生或者是人工天机。然后推测人
+工添加的部分应该很大一部分是和加入二氧化硫气体溶于红酒里面后的量有关。
+
+```{r}
+ggplot(data=wineQuantity,aes(x=sulphates))+
+  geom_bar()+
+  labs( x = "sulphates (mg/l)",
+        title = "View the sulphates")
+
+```
+
+
+## 5.residual.sugar (残留糖)
+查看残留糖的数据分布,并且调整到合适组距
+
+粗略观察按质量分组的统计数据，看均值和中位数在各个不同品质的酒中残留糖浓度好像
+区别不大 ，同理，具体可视化放在后面双边量分析
+
+一般品尝葡萄酒的话好像都只有一点点的甜，那我们来分析一下残留糖
+下图可以看到残留糖一般在1.9到2.6之间,发现主要的的区间内还是属于单峰的形状，往右边还是挺多异常值的。而且糖的含量普遍都是比较少的，所以红酒一般不太甜。
+
+```{r}
+ggplot(data=wineQuantity,aes(x=residual.sugar))+
+  geom_histogram( binwidth = 0.1)+
+  geom_freqpoly(color="red",binwidth = 0.1) + 
+  scale_x_continuous(breaks=seq(0,16,0.5)) +
+  labs( x = "residual.sugar (mg/l)",
+        title = "View the residual.sugar")
+#查看残留糖的数据分布,并且调整到合适组距
+
+ggplot(wineQuantity,aes(y=residual.sugar))+
+  geom_boxplot()+
+  labs( y = "residual.sugar (mg/l)",
+        title = "View the residual.sugar")
+by(wineQuantity$residual.sugar,wineQuantity$quality,summary)  
+# 粗略观察按质量分组的统计数据，看均值和中位数在各个不同品质的酒中残留糖浓度好像
+# 区别不大 ，同理，具体可视化放在后面双边量分析
+
+```
+
+## 6. 新变量wine.class 
+根据资料查阅根据糖的含量的不同，根据糖含量不同红酒类型可以分为 
+
+干型葡萄酒是含糖（以葡萄糖计）小于或等于4.0克/升。
+半干葡萄酒是含糖大于干葡萄酒，最高为12.0克/升的葡萄酒。
+半甜葡萄酒是含糖大于半干葡萄酒，最高为45.0克/升的葡萄酒。
+甜葡萄酒是含糖大于45.0克/升的葡萄酒
+https://baijiahao.baidu.com/s?id=1620715576535348030&wfr=spider&for=pc
+于是我们可以根据查阅的资料创建新的变量，wine.class，
+按四种不同含糖葡萄酒种类来划分。
+如下图可以看到，如果按糖分含量来进行种类划分的话，数据集中基本上都是干型红酒，
+然后半干和半甜的都是占比很少。
+
+```{r}
+wineQuantity$wine.class <-NA
+wineQuantity[wineQuantity$residual.sugar <= 4,]$wine.class <- "dry"
+wineQuantity[wineQuantity$residual.sugar > 4 &
+               wineQuantity$residual.sugar <= 12 ,]$wine.class <- "semi-dry"
+wineQuantity[wineQuantity$residual.sugar > 12 &
+               wineQuantity$residual.sugar <= 45,]$wine.class <- "semi-sweet"
+# wineQuantity[wineQuantity$residual.sugar > 45 ,]$wine.class <- "sweet"  
+# 没有含量大于45的甜类型的
+table(wineQuantity$wine.class)
+
+ggplot(wineQuantity,aes(x=wine.class))+
+  geom_bar()+
+  ggtitle("View the wine.class") 
+
+```
+
+## 7.alcohol  
+下面我们来看看一下alcohol变量的情况
+查阅资料后知道，红酒中酒精的单位一般为使用百分比来计算的，而红酒一瓶一般为750ml，
+所以下面中的数字的单位应该为酒精占的百分比含量。下图的summary可以看出9.5 到11 之间的酒精含量，然后也是两边递减的关系，酒精含量浓度很高或者很低的都比较少
+
+```{r}
+ggplot(data=wineQuantity,aes(x=alcohol))+
+  geom_histogram( binwidth = 0.1)+
+  geom_freqpoly(color="red",binwidth = 0.1) + 
+  scale_x_continuous(breaks=seq(0,16,0.5))+
+  labs( x = "alcohol (% by volume)",
+        title = "View the alcohol")
+
+summary(wineQuantity$alcohol)
+
+# 那我们再一起看看它的箱型图是怎么样的。
+ggplot(wineQuantity,aes(y=alcohol))+
+  geom_boxplot()+
+  labs( y = "alcohol (% by volume)",
+        title = "View the alcohol")
+
+```
+
+## 8.density（密度）
+这个变量应该是对红酒口感影响比较大的，我们来观察一下
+我们发现density之间的差值都很小，而且分布比较像正态分布，
+然后他的范围一般在0.993 到 1.000之间，变化差别比较小，
+暂时不知道对品质的评判影响大不大，后面多变量分析再看看
+
+```{r}
+ggplot(data=wineQuantity,aes(x=density))+
+  geom_histogram( binwidth = 0.0001)+
+  geom_freqpoly(color="red",binwidth = 0.0001) + 
+  scale_x_continuous(breaks=seq(0,2,0.001)) +
+  labs( x = "density (mg/l)",
+        title = "View the density")
+
+ggplot(wineQuantity,aes(y=density))+
+  geom_boxplot()+
+  labs( y = "density (mg/l)",
+        title = "View the density")
+```
+
+## 9.pH
+然后是对pH 变量来进行分析，pH为7为中性，低于7为酸性，高于7为碱性。
+我们可以看到数据集中的pH都是小于7的，所以我们喝的红酒都是酸的。
+
+```{r}
+ggplot(data=wineQuantity,aes(x=pH))+
+  geom_histogram( )+
+  geom_freqpoly(color="red")+
+  ggtitle("View the pH")
+
+ggplot(wineQuantity,aes(y=pH))+
+  geom_boxplot()+
+  ggtitle("View the pH")
+```
+
+
+
+
+
+## 8.citric.acid 柠檬酸
+这儿发现在0和0.455大概这个位置有两个峰值，暂时不知道为什么
+
+```{r}
+ggplot(data=wineQuantity,aes(x=citric.acid ))+
+  geom_histogram(binwidth = 0.01 )+
+  scale_x_continuous(breaks = seq(0,1,0.05))+
+  labs( x = "citric.acid (mg/l)",
+        title = "View the citric.acid")
+
+
+ggplot(wineQuantity,aes(y=citric.acid ))+
+  geom_boxplot()+
+  labs( y = "citric.acid (mg/l)",
+        title = "View the citric.acid")
+```
+
+
+## 9.fixed.acidity 固定酸
+
+```{r}
+ggplot(data=wineQuantity,aes(x=fixed.acidity ))+
+  geom_histogram( binwidth = 0.05)+
+  scale_x_continuous(breaks=seq(0,16,1))+
+  labs( x = "fixed.acidity (mg/l)",
+        title = "View the fixed.acidity")
+  
+ 
+ggplot(wineQuantity,aes(y=fixed.acidity ))+
+  geom_boxplot()+
+  labs( y = "fixed.acidity (mg/l)",
+        title = "View the fixed.acidity")
+```
+
+## 10.quality 品质
+品质大部分都是5，6，数据集中最好的8品质和最差的3品质都很少。
+
+```{r}
+ggplot(data=wineQuantity,aes(x=quality))+
+  geom_bar()+
+  ggtitle("View the quality")
+ 
+```
+
+
+
+# 单变量分析
+
+### 你的数据集结构是什么？
+数据集结构情况如上可视化可见。
+
+### 你的数据集内感兴趣的主要特性有哪些？
+1.residual.sugar 残留糖
+2.chlorides 氯化物
+3.free.sulfur.dioxide  游离二氧化硫
+4.total.sulfur.dioxide 合计二氧化硫
+5.sulphates  硫酸盐
+6.density 密度，浓度，稠度
+7.pH
+8.fixed.acidity 固定酸
+9.citric.acid 柠檬酸
+10.quality 品质
+11.alcohol 酒精
+12.quality 品质
+
+### 你认为数据集内哪些其他特征可以帮助你探索兴趣特点？
+residual.sugar 残留糖
+alcohol 酒精
+chlorides 氯化物
+density 密度，浓度，稠度
+citric.acid 柠檬酸
+
+
+### 根据数据集内已有变量，你是否创建了任何新变量？
+根据residual.sugar(残留糖) 的含量的不同创造出了新分类变量，
+wine.class，用来根据糖的含量来对葡萄酒进行划分种类。
+
+### 在已经探究的特性中，是否存在任何异常分布？你是否对数据进行一些操作，如清洁、调整或改变数据的形式？如果是，你为什么会这样做？
+单变量分析中发现有些变量的分布是存在异常分布的，
+不过根据需要把X和quality改成了factor类型。暂时没有对数据进行任何处理，
+具体的处理可能在后面进行双、多变量分析的时候再根据需要来进行处理。
+
+
+
+
+# 双变量分析
+
+## 绘制点图矩阵进行整体变量的概略观察
+绘制点图矩阵进行整体变量的概略观察，因为X是id,为累加的情况，所以就不进行观察。
+ggpair绘制的点图矩阵可以看到如下相关性比较强的几个变量的情况，
+多个变量分析时候需要注意（从ggpair点阵图看出相关性）  
+
+citric.acid & fixed.acidity 0.672 强相关
+citric.acid & volatile.acidity -0.552 中等程度相关
+total.sulfur.dioxide & free.sulfur.dioxide  0.668  强相关
+density & fixed.acidity 0.668 强相关
+pH & fixed.acidity -0.683 负相关 强相关
+pH & citric.acid -0.542 中等程度相关
+alcohol & density  -0.496 中等程度相关
+quality & alcohol  0.476 中等程度相关
+
+除了以上的，还需要探索变量的变量是：
+wine.class 、residual.sugar 等和quality之间的关系
+
+
+## residual.sugar & quality (残留糖和品质的关系)
+受下是残留糖，可以看出数据集中品质处于中间的红酒含糖量的范围比较大，
+而低品质的和更高品质的红酒的含糖范围一般都比较少。
+看起来好像对品质的影响关系不大。
+
+```{r}
+ggplot(wineQuantity,aes(y=residual.sugar,x=quality))+
+  geom_point( )+
+  labs( y = "residual.sugar (mg/l)",x = "quality",
+        title = "the point plot of residual.sugar & quality")
+
+ggplot(wineQuantity,aes(x=quality ,y=residual.sugar))+
+  geom_boxplot(aes(size=alcohol),alpha=0.5)+
+  labs( y = "residual.sugar (mg/l)",x = "quality",
+        title = "the box plot of alcohol & quality")
+
+by(wineQuantity$residual.sugar,wineQuantity$quality,summary)
+```
+
+
+## wine.class & quality (红酒品种（按含糖量划分）和品质的关系)
+而使用残留糖衍生出来的分类变量看，种类和质量的关系，更明显看出，数据集中，
+人们大多喜欢品尝干型、半干型的红酒，而半甜的占很少很少的量，而甜型的
+，数据集中甚至都没有出现。
+
+```{r}
+ggplot(wineQuantity,aes(x=quality))+
+  geom_bar( aes(fill=wine.class),position = "dodge")+
+  ggtitle("the barplot of wine.class & quality")
+
+by(wineQuantity$wine.class,wineQuantity$quality,summary)
+```
+
+## residual.sugar & alcohol （残留糖和酒精含量的关系）
+那我们进而看看残留糖的含量是否和红酒的发酵是否完全有关，
+可以看到残留糖主要都集中在残留糖为4之前横跨酒精含量9~12之间各种酒精含量，
+那么推测可能残留糖和酒精含量之间关系不大，
+也就是说残留糖不一定和红酒是否完全发酵有关。
+
+```{r}
+
+ggplot(wineQuantity,aes(x=residual.sugar ,y=alcohol))+
+  geom_jitter(alpha=0.1)+
+  labs( y = "alcohol (% by volume)",x = "residual.sugar(mg/l)",
+        title = "residual.sugar & quality")
+
+```
+
+## alcohol & quality
+整体看着点图的移动，因为是中等程度正相关的相互关系，所以可以看到，
+随着酒精含量的上升，品质渐渐的上升.
+不过酒精含量整体是小于12的，主要集中在品质5~6之间
+
+```{r}
+
+by(wineQuantity$alcohol,wineQuantity$quality,summary)                                                                                                                     
+
+ggplot(wineQuantity,aes(x=quality,y=alcohol))+
+  geom_boxplot()+
+  ggtitle("")+
+  labs( y = "alcohol (% by volume)",x = "quality",
+        title = " the boxplot of alcohol & quality")+
+  stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+
+ggplot(wineQuantity,aes(x=quality ,y=alcohol))+
+  geom_jitter(alpha=0.5)+
+  labs( y = "alcohol (% by volume)",x = "quality",
+        title = " alcohol & quality")
+
+```
+
+
+
+
+###  查看不同 quality(品质) 下alcohol(酒精)的均值和中位数的变化情况
+由单变量分析时候的ggpair 概略查看得知，quality & alcohol  0.476 中等程度相关
+总体看来是同时增大而增大的，但是品质为5的却又比品质为3、4的酒精含量更底
+
+```{r}
+quality_groups <- group_by(wineQuantity, quality) 
+alcohol.quality <- summarise(quality_groups, 
+                alcohol_mean = mean(alcohol), 
+                alcohol_median = median(alcohol), 
+                n = n()) 
+alcohol.quality <- arrange(alcohol.quality, quality) 
+
+# x must be a number
+plot1 <- ggplot(data=alcohol.quality,
+                aes(x=as.numeric(as.character(quality)),y=alcohol_mean))+
+  geom_smooth(color="blue")+
+  geom_point()+
+  labs( y = "mean of alcohol (% by volume)",x = "quality",
+        title = "the  mean of alcohol in diffient quality")
+# alcohol.quality
+
+plot2 <- ggplot(alcohol.quality,
+                aes(x=as.numeric(as.character(quality)),y=alcohol_median))+
+  labs( y = "median of alcohol (% by volume)",x = "quality",
+        title = "the media of alcohol in diffient quality")+
+  geom_point()+
+  geom_smooth()
+
+grid.arrange(plot1,plot2)
+
+```
+
+
+## density & quality
+第一个箱线图可以看出品质的酒精含量的中间趋势有越来越小的趋势；
+然后第二个点图可以看出，酒精含量基本上聚集在0.995到1.000之间。
+
+```{r}
+
+ggplot(wineQuantity,aes(x=factor(quality),y=density))+
+  geom_boxplot()+
+  labs( y = "density (mg/l)",x = "factor(quality)",
+        title = "density & quality")+
+  stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+
+ggplot(wineQuantity,aes(x=quality,y=density))+
+  geom_smooth(color="red")+
+  labs( y = "density (mg/l)",x = "quality",
+        title = "the smooth of density & quality")+
+  geom_jitter(alpha=0.5)
+
+by(wineQuantity$density,wineQuantity$quality,summary)  
+
+
+```
+
+## chlorides & quality(氯化物 和 品质的关系)
+。chlorides和quality的关系也有点儿像上面的density和quality的关系，品质越高，
+氯化物的范围就越小，而且一般也是品质越高，氯化物含量也越少的变化。
+
+```{r}
+ggplot(wineQuantity,aes(x=quality,y=chlorides))+
+  geom_boxplot()+
+  labs( y = "chlorides (mg/l)",x = "quality",
+        title = "chlorides & quality")+
+  ylim(0,0.3)
+
+ggplot(wineQuantity,aes(x=quality,y=chlorides))+
+  geom_smooth(color="red")+
+  labs( y = "chlorides (mg/l)",x = "quality",
+        title = "the smooth of chlorides & quality")+
+  geom_jitter(alpha=0.5)+ylim(0.025,0.15)
+
+by(wineQuantity$chlorides,wineQuantity$quality,summary) 
+table(wineQuantity$quality)
+  # stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+```
+
+## chlorides & density
+观察chlorides和density之间的关系，发现他们之间的相关性不是很强，
+所以关系应该也不强。
+
+```{r}
+ggplot(data = wineQuantity,aes(x=chlorides,y=density)) + 
+  geom_jitter(alpha=0.1)+
+  labs( y = "density (mg/l)",x = "chlorides (mg/l)",
+        title = "chlorides & density")
+
+
+cor.test(wineQuantity$chlorides,wineQuantity$density)
+# by(wineQuantity$chlorides,wineQuantity$quality,summary)  # 
+```
+
+
+## pH  & quality
+总体看起来pH是随着quality下降的一个关系，属于负相关的关系
+
+```{r}
+ggplot(data = wineQuantity,aes(x=factor(quality),y=pH)) + 
+  geom_boxplot()+ggtitle("the boxplot of ph & quality")+
+  stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+by(wineQuantity$pH,wineQuantity$quality,summary)  # 
+
+```
+
+
+## 探索可能和 pH 相关的变量
+3.free.sulfur.dioxide  游离二氧化硫
+4.total.sulfur.dioxide 合计二氧化硫
+5.sulphates  硫酸盐
+9.citric.acid 柠檬酸
+8.fixed.acidity 固定酸
+
+按如下的几个图可以看出，citric.acid（柠檬酸）和fixed.acidity（固定酸）越多，
+pH越小，所以pH应该主要受这两个变量的影响，其他的变量变化较平，不明显的关系。
+
+```{r}
+plotc <- ggplot(data = wineQuantity,aes(x=citric.acid,y=pH)) +
+  geom_jitter(alpha=0.5)+
+  labs( y = "pH",x = "citric.acid (mg/l)",
+        title = "ph & citric.acid")+
+  geom_smooth()
+
+plotd <- ggplot(data = wineQuantity,aes(x=free.sulfur.dioxide,y=pH)) +
+  geom_point(alpha=0.5)+
+  labs( y = "pH",x = "free.sulfur.dioxide (mg/l)",
+        title = "ph & free.sulfur.dioxide")+
+  geom_smooth()
+
+plote <- ggplot(data = wineQuantity,aes(x=total.sulfur.dioxide,y=pH)) +
+  geom_point(alpha=0.5)+
+  labs( y = "pH",x = "total.sulfur.dioxide (mg/l)",
+        title = "ph & total.sulfur.dioxide")+
+  geom_smooth()
+
+plotf <- ggplot(data = wineQuantity,aes(x=fixed.acidity,y=pH)) + 
+  geom_point(alpha=0.5)+
+  labs( y = "pH",x = "fixed.acidity (mg/l)",
+        title = "ph & fixed.acidity")+
+  geom_smooth()
+
+plotg <- ggplot(data = wineQuantity,aes(x=sulphates ,y=pH)) +
+  geom_point(alpha=0.5)+
+  labs( y = "pH",x = "sulphates",
+        title = "the relation of ph & sulphates")+
+  geom_smooth()
+grid.arrange(plotc,plotd,plote,plotf,plotg)
+
+```
+
+
+
+
+
+
+## sulphates & quality 
+sulphates 则是总体随着quality逐渐上升，硫酸盐含量越来越多。
+
+```{r}
+ggplot(data = wineQuantity,aes(x=quality,y=sulphates)) +
+  geom_boxplot()+
+  stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")+
+  labs( y = "sulphates (mg/l)",x = "quality",
+      title = "the boxplot of quality & sulphates")
+
+ggplot(wineQuantity,aes(x=quality,y=sulphates))+
+  geom_jitter(alpha=0.5)+
+  labs( y = "sulphates (mg/l)",x = "quality",
+        title = "the relation of quality & sulphates")
+by(wineQuantity$sulphates,wineQuantity$quality,summary)  # 
+
+```
+
+### 探索影响 sulphates  的变量
+然后这儿开始研究一下什么变量最影响硫酸盐的含量，这儿考虑到几个酸性相关的，有
+free.sulfur.dioxide  游离二氧化硫
+total.sulfur.dioxide 合计二氧化硫 
+citric.acid   柠檬酸
+fixed.acidity 固定酸                                                                                                    
+
+#### 观察去掉最大最小值后的sulphates和citric.acid 之间的关系
+去掉前百分之10和后面百分之10 的数据的数据 看 citric.acid  和 sulphates 。整体看来无论是sulphates的均值，还是中位数，都是曲折上升的过程，看经过平滑处理
+过的smooth曲线可以看出，整体citric.acid 越多，sulphates就越多。
+
+```{r}
+subWinedasta <- subset(wineQuantity,citric.acid >= quantile(citric.acid,.1))
+subwinee <- subset(subWinedasta, citric.acid <= quantile(citric.acid,.9))
+
+
+sulphates.citric.acid <- subwinee %>% group_by(citric.acid ) %>% 
+  summarise(
+           mean_sulphates =mean(as.numeric(sulphates)),
+           median_sulphates = median(as.numeric(sulphates)),
+           min_sulphates = min(as.numeric(sulphates)),
+           max_sulphatese = max(as.numeric(sulphates)),
+           n= n()
+            )
+
+plot1 <- ggplot(sulphates.citric.acid ,aes(x=citric.acid ,y=mean_sulphates))+
+  geom_line(color="red")+
+  labs( y = "mean of sulphates (mg/l)",x = "citric.acid (mg/l)",
+        title = "the trend of citric.acid & mean of sulphates")+
+  geom_smooth()
+  
+plot2 <- ggplot(sulphates.citric.acid ,aes(x=citric.acid ,y=median_sulphates))+
+  geom_line(color="red")+
+  labs( y = "median of sulphates (mg/l)",x = "citric.acid (mg/l)",
+        title = "the trend of citric.acid & median of sulphates")+
+  geom_smooth()
+
+grid.arrange(plot1,plot2)
+
+cor.test(subwinee$citric.acid,subwinee$sulphates)
+
+```
+
+
+
+#### sulphates & fixed.acidity
+同理，观察硫酸盐和其他酸的关系
+fixed.acidity 和 sulphates 之间的关系变化也可以看出总体也是sulphates随着fixed.acidity的增加而增加的。
+
+```{r}
+
+subWinedasta2 <-subset(wineQuantity,fixed.acidity >= quantile(fixed.acidity,.1))
+subwinee2 <- subset(subWinedasta2, fixed.acidity <= quantile(fixed.acidity,.9))
+
+
+sulphates.fixed.acidity <- subwinee2 %>% group_by(fixed.acidity ) %>% 
+  summarise(
+           mean_sulphates =mean(as.numeric(sulphates)),
+           median_sulphates = median(as.numeric(sulphates)),
+           min_sulphates = min(as.numeric(sulphates)),
+           max_sulphatese = max(as.numeric(sulphates)),
+           n= n()
+            )
+
+plot3 <- ggplot(sulphates.fixed.acidity ,
+                aes(x=fixed.acidity ,y=mean_sulphates))+
+  geom_line(color="red")+
+  labs( y = "mean of sulphates (mg/l)",x = "fixed.acidity (mg/l)",
+        title = "the trend of fixed.acidity & mean of sulphates")+
+  geom_smooth()
+  
+plot4 <- ggplot(sulphates.fixed.acidity ,
+                aes(x=fixed.acidity ,y=median_sulphates))+
+  geom_line(color="red")+
+  labs( y = "median of sulphates (mg/l)",x = "fixed.acidity (mg/l)",
+        title = "the trend of fixed.acidity & median of sulphates")+
+  geom_smooth()
+
+grid.arrange(plot3,plot4)
+
+cor.test(subwinee2$fixed.acidity,subwinee2$sulphates)
+```
+
+
+#### sulphates & free.sulfur.dioxide 
+free.sulfur.dioxide 到22.5 这儿的时候sulphates有最大的值，然后就又下降了。
+所以应该是有一定关系的，但是却不是直献的关系。
+
+```{r}
+
+cor.test(wineQuantity$free.sulfur.dioxide,wineQuantity$total.sulfur.dioxide)
+subWinedasta3 <- subset(wineQuantity,
+                        free.sulfur.dioxide >= quantile(free.sulfur.dioxide,.1))
+subwinee3 <- subset(subWinedasta3, 
+                    free.sulfur.dioxide <= quantile(free.sulfur.dioxide,.9))
+
+
+sulphates.free.sulfur.dioxide <- subwinee3 %>% 
+  group_by(free.sulfur.dioxide ) %>% 
+  summarise(
+           mean_sulphates =mean(as.numeric(sulphates)),
+           median_sulphates = median(as.numeric(sulphates)),
+           min_sulphates = min(as.numeric(sulphates)),
+           max_sulphatese = max(as.numeric(sulphates)),
+           n= n()
+            )
+
+plot5 <- ggplot(sulphates.free.sulfur.dioxide ,
+                aes(x=free.sulfur.dioxide ,y=mean_sulphates))+
+  geom_line(color="red")+
+  labs( y = "mean of sulphates (mg/l)",x = "free.sulfur.dioxide (mg/l)",
+        title = "the trend of free.sulfur.dioxide & mean of sulphates")+
+  geom_smooth()
+  
+plot6 <- ggplot(sulphates.free.sulfur.dioxide ,
+                aes(x=free.sulfur.dioxide ,y=median_sulphates))+
+  geom_line(color="red")+
+  labs( y = "median of sulphates (mg/l)",x = "free.sulfur.dioxide (mg/l)",
+        title = "the trend of free.sulfur.dioxide & median of sulphates")+
+  geom_smooth()
+
+grid.arrange(plot5,plot6)
+
+```
+
+#### sulphates & total.sulfur.dioxide 
+而 sulphates & total.sulfur.dioxide 整体看齐来平滑后的曲线很平稳，所以存在波动，
+但是可能对溶液中的sulphates影响比较小。
+
+```{r}
+
+# cor.test(wineQuantity$total.sulfur.dioxide,wineQuantity$total.sulfur.dioxide)
+subWinedasta4 <- subset(wineQuantity,free.sulfur.dioxide >=
+                          quantile(free.sulfur.dioxide,.1))
+subwinee4 <- subset(subWinedasta4, free.sulfur.dioxide <= 
+                      quantile(free.sulfur.dioxide,.9))
+
+
+sulphates.total.sulfur.dioxide <- subwinee4 %>% 
+  group_by(total.sulfur.dioxide ) %>% 
+  summarise(
+           mean_sulphates =mean(as.numeric(sulphates)),
+           median_sulphates = median(as.numeric(sulphates)),
+           min_sulphates = min(as.numeric(sulphates)),
+           max_sulphatese = max(as.numeric(sulphates)),
+           n= n()
+            )
+
+plot7 <- ggplot(sulphates.total.sulfur.dioxide ,
+                aes(x=total.sulfur.dioxide ,y=mean_sulphates))+
+  geom_line(color="red")+
+  ggtitle("the trend of total.sulfur.dioxide & mean of sulphates")+
+  labs( y = "mean of sulphates (mg/l)",x = "total.sulfur.dioxide (mg/l)",
+        title = "the trend of total.sulfur.dioxide & mean of sulphates")+
+  geom_smooth()
+  
+plot8 <- ggplot(sulphates.total.sulfur.dioxide ,
+                aes(x=total.sulfur.dioxide ,y=median_sulphates))+
+  geom_line(color="red")+
+  labs( y = "median of sulphates (mg/l)",x = "total.sulfur.dioxide (mg/l)",
+        title = "the trend of total.sulfur.dioxide & median of sulphates")+
+  geom_smooth()
+
+grid.arrange(plot7,plot8)
+
+```
+
+
+所以结果可能是sulphates和fixed.acidity、citric.acid有轻微的正相关性，但是和free.sulfur.dioxide 之间则是有一段上升长期，然后就下降。和total.sulfur.dioxide 影响不大。
+
+
+
+
+## free.sulfur.dioxide & quality
+这个变化中间有个起伏，他们之间的规律不明显
+
+```{r}
+ggplot(wineQuantity,aes(x=factor(quality),y=free.sulfur.dioxide))+
+  geom_boxplot()+
+  ggtitle("free.sulfur.dioxide & quality")
+by(wineQuantity$free.sulfur.dioxide,wineQuantity$quality,summary) 
+  # stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+```
+
+
+## total.sulfur.dioxide & quality
+total.sulfur.dioxide 和 free.sulfur.dioxide 和quality之间可视化结果比较像。
+看起来有起伏，但是好像看不出太明显的关系
+
+```{r}
+ggplot(wineQuantity,aes(x=factor(quality),y=total.sulfur.dioxide))+
+  geom_boxplot()+
+  ggtitle("total.sulfur.dioxide & quality")
+by(wineQuantity$total.sulfur.dioxide,wineQuantity$quality,summary) 
+  # stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+```
+
+## volatile.acidity & quality
+volatile.acidity & quality 之间的关系就比较明显了。volatile.acidity挥发性酸 
+整体随着quality 的增加而减少。负相关性比较强
+
+```{r}
+ggplot(wineQuantity,aes(x=factor(quality),y=volatile.acidity))+
+  geom_boxplot()+
+  ggtitle("volatile.acidity & quality")
+       
+by(wineQuantity$total.sulfur.dioxide,wineQuantity$quality,summary) 
+  # stat_summary(fun.y = "mean",geom="point",shape=23,size=3,fill="yellow")
+```
+
+## 探索各个变量之间的相关性强弱的关系
+下图相关性的图可以看出，和quality相关性比较强的变量有alcohol，  
+然后是volatile.acidity挥发酸  
+然后是citric.acid柠檬酸，然后是sulphates硫酸盐，  
+这是前四个与quality相关性最强的变量。  
+
+```{r}
+myvars <- c("fixed.acidity", "volatile.acidity","citric.acid",'residual.sugar',
+            'chlorides','free.sulfur.dioxide',"total.sulfur.dioxide","density",
+            "pH","sulphates","alcohol","quality")
+allcorResult <- cor(rawWineQuantity[myvars])
+corrplot(allcorResult ,method="circle",shade.col=NA,tl.col="black",tl.srt=45)
+
+```
+
+
+
+
+# 双变量绘图选择
+双变量绘图的时候主要使用ggplot的箱线图，和散点图来进行两个变量的可视化操作。
+还可以用折线图
+# 双变量分析
+
+### 探讨你在这部分探究中观察到的一些关系。这些感兴趣的特性与数据集内其他特性有什么区别？
+比较感兴趣的是residual.sugar  和quality的关系。
+但是发现残留糖对品质基本上没什么影响，
+不过由这个变量衍生出来的红酒品种变量wine.class 可以看出 ，
+大家可能比较喜欢喝不甜的红酒，也就是干型红酒，或者半干型，
+因为数据集中的这两种酒占比最多。
+
+
+### 你是否观察到主要特性与其他特性之间的有趣关系？
+
+从开头的ggpair图中可以找到与quality相关性比较强的如下的几种关系。  
+
+quality 和 volatile.acidity  -0.391比较强的负相关的关系。  
+
+quality 和 citric.acid（柠檬酸）  相关性= 0.228 有轻微的正相关关系  
+
+quality &  sulphates  corr = 0.251 中等程度相关  
+
+quality 和 alcohol 相关性 = 0.467   
+
+### 你发现最强的关系是什么？
+
+alcohol 和 volatile.acidity 对quality的关系比较强。  
+
+
+### 你发现最强的关系是什么？  
+
+发现与quality最强的关系是：  
+
+alcohol,volatile.acidity,citric.acid,sulphates 与quality的关系比较强。  
+
+然后alcohol 与density 的关系比较强。  
+
+pH与citric.acid 和 fixed.acid的关系比较强  
+
+citric.acid 又与 fixed.acid 和 volatile.acidity 的关系比较强  
+
+density 和 fixed.acid 关系很强。  
+
+
+
+
+# 多变量分析
+为了方便观察品质的情况，我们再次创建一个新的变量 qclass,  
+把数据集中有的6个品质划分为3个品质，分别是low，median，good  
+由下图以及拟合出的直线可以看出。  
+
+(1)citric.acid 越多，volatile.acidity 越少 的红酒的品质会越好  
+
+(2)alcohol 酒精含量越高，citric.acid 柠檬酸越多的红酒品质会越好。  
+
+(3)alcohol 酒精含量越多，volatile.acidity 挥发酸越少的红酒品质会越好。  
+
+(4)alcohol 酒精含量越高，sulphates 硫酸盐越多的红酒品质会越好。  
+
+所以我们可以有一个简单的结论，alcohol 酒精含量越高，citric.acid 柠檬酸越多，  
+volatile.acidity 挥发酸越少，sulphates 硫酸盐越多的情况下的红酒品质会越好。  
+
+```{r echo=FALSE, Multivariate_Plots}
+
+# 划分品质，合并减少变量方便观察
+wineQuantity$qclass <- ifelse(
+  as.integer(as.character(wineQuantity$quality))<5,'low',
+  ifelse(as.integer(as.character(wineQuantity$quality))<7,"median",'good'))
+
+wineQuantity$qclass <-factor(wineQuantity$qclass,c("low",'median','good'))
+
+ggplot(wineQuantity,aes(x=citric.acid,y=volatile.acidity,color=qclass))+
+  geom_point()+geom_smooth(method="lm",se=FALSE)+
+  labs( y = "volatile.acidity (mg/l)",x = "citric.acid (mg/l)",
+        title = "Relationship of citric.acid & volatile.acidity & qclass")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+ggplot(wineQuantity,aes(x=alcohol,y=citric.acid,color=qclass))+
+  geom_point()+geom_smooth(method="lm",se=FALSE)+
+  labs( y = "citric.acid (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of alcohol & citric.acid & qclass")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+ggplot(wineQuantity,aes(x=alcohol,y=volatile.acidity,color=qclass))+
+  geom_point()+geom_smooth(method="lm",se=FALSE)+
+  labs( y = "volatile.acidity (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of alcohol & volatile.acidity & qclass")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+ggplot(wineQuantity,aes(x=alcohol,y=log10(sulphates),color=qclass))+
+  geom_point()+geom_smooth(method="lm",se=FALSE)+
+  labs( y = "log10(sulphates) (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of alcohol & sulphates & qclass")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+```
+
+
+# 多变量绘图选择
+多变量中我们主要使用了点图来进行多变量数据的数据可视化操作。
+
+
+###  探讨你在这部分探究中观察到的一些关系。通过观察感兴趣的特性，是否存在相互促进的特性？
+由之前的ggpair点图矩阵可以看到一下的变量会有比较强的相关性。
+其中有很多变量具有相互促进的特征，比如最终我们发现 alcohol 酒精含量越高，
+citric.acid 柠檬酸越多，sulphates 硫酸盐越多会共同促进 红酒的品质更好等。  
+
+citric.acid & fixed.acidity  0.672 强相关  
+citric.acid & volatile.acidity -0.552 中等程度相关  
+total.sulfur.dioxide & free.sulfur.dioxide  0.668  强相关  
+density & fixed.acidity 0.668 强相关  
+pH & fixed.acidity -0.683 负相关 强相关  
+pH & citric.acid -0.542 中等程度相关  
+alcohol & density  -0.496 中等程度相关  
+quality & alcohol  0.476 中等程度相关  
+
+### 这些特性之间是否存在有趣或惊人的联系呢？
+1.比如sulphates 硫酸盐，就和 citric.acidity，fixed.acidity 等酸有关。  
+
+2.然后一开始感兴趣的含糖量在都是可以出品(发酵好出品)的情况下，  
+
+发现人们一般比较喜欢干型，半干型的红酒，而半甜甚至是甜型的红酒的数据都比较少，  
+
+所以市面上的红酒品尝起来应该不怎么甜。  
+
+3.然后发现二氧化硫虽然算是大气污染物，  
+
+不过在剂量不对人造成伤害的情况下，  
+
+还可以做红酒的保鲜剂。等  
+
+
+
+------
+
+# 定稿图与总结
+
+### 绘图一
+
+ 
+```{r Plot_One}
+ggplot(wineQuantity,aes(x=quality))+
+  geom_bar( aes(fill=wine.class),position = "dodge")+
+  ggtitle("the barplot of wine.class & quality")
+
+```
+
+### 描述一  
+红酒的类型（按含糖划分的类型）和红酒的品质无关，但是大家喝得比较多的是干型、半干型的红酒。
+
+### 绘图二
+影响红酒质量的最主要的四个变量  
+
+```{r echo=FALSE, Plot_Two}
+final1 <- ggplot(wineQuantity,
+                 aes(x=citric.acid,y=volatile.acidity,color=qclass))+
+  geom_point()+geom_smooth(method="lm")+
+  labs( y = "volatile.acidity (mg/l)",x = "citric.acid (mg/l)",
+        title = "Relationship of volatile.acidity & alcohol")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+final2 <- ggplot(wineQuantity,aes(x=alcohol,y=citric.acid,color=qclass))+
+  geom_point()+geom_smooth(method="lm")+ 
+  labs( y = "citric.acid (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of citric.acid & alcohol")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+final3 <- ggplot(wineQuantity,aes(x=alcohol,y=volatile.acidity,color=qclass))+
+  geom_point()+geom_smooth(method="lm")+ 
+  labs( y = "volatile.acidity (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of volatile.acidity & alcohol")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+final4 <- ggplot(wineQuantity,aes(x=alcohol,y=log10(sulphates),color=qclass))+
+  geom_point()+geom_smooth(method="lm")+ 
+  labs( y = "log10(sulphates) (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of log10(sulphates) & alcohol")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+grid.arrange(final1,final2,final3,final4,ncol = 2)
+```
+
+### 描述二
+上面的四个图可以得到如下的四个关系:  
+(1)citric.acid 越多，volatile.acidity 越少 的红酒的品质会越好  
+(2)alcohol 酒精含量越高，citric.acid 柠檬酸越多的红酒品质会越好。  
+(3)alcohol 酒精含量越多，volatile.acidity 挥发酸越少的红酒品质会越好。  
+(4)alcohol 酒精含量越高，sulphates 硫酸盐越多的红酒品质会越好。
+
+### 绘图三
+
+```{r echo=FALSE, Plot_Three}
+
+cor(wineQuantity$density,as.numeric(as.character(wineQuantity$quality)))
+
+ggplot(wineQuantity,aes(y= volatile.acidity, x= alcohol,color = qclass)) + 
+  geom_point()+geom_smooth(method="lm",aes(color = qclass))+
+  scale_y_continuous(breaks = seq(0,1.6,0.1))+
+  scale_x_continuous(breaks = seq(0,15,0.5)) + 
+  labs( y = "volatile.acidity (mg/l)",x = "alcohol (% by volume)",
+        title = "Relationship of volatile.acidity & alcohol")+
+  theme_dark()+scale_color_brewer(type = "div")
+
+
+
+```
+
+### 描述三
+最后查看这两个变量alcohol和 volatile.acidity 谁对红酒品质影响比较大。
+我们可以看到alcohol酒精含量从9.25 到 13.0之间 存在着三个等级的品质，
+而看y轴 volatile.acidity 可以看到大概volatile.acidity为 0.65这儿是low和median品
+质分级的分界点，然后volatile.acidity 为0.45是median和good品质的分界点，
+可以看到比较明显的分界判定。所以个人推测，
+volatile.acidity挥发酸应该是对品质判定影响比较大。
+
+结论总结，红酒的品质判定受很多的变量的影响，
+其中里面影响比较大的成分为 alcohol 、volatile.acidity、 citric.acid、sulphate。
+其中在这四个变量之中影响最明显的应该是volatile.acidity的含量。
+得出的总的判定结论是，红酒中的alcohol, ,citric.acid,sulphates 越多，
+volatile.acidity越少，红酒的品质酒越高。
+------
+
+# 反思
+
+## 过程中遇到的难点
+   这次项目三探索性数据分析中遇到的难点是：视频很多，练习很多，需要勤奋的去刷视频。这次是项目三探索性数据分析感觉自己做了实在是有些久了，前后跨越一个月有了。个人感觉问题出在自己一开始没有对探索性数据分析的整体目的和流程的意义有有比较清晰的理解。然后就是可能自己对学过的知识也没有一个特别好的整理的方法和习惯，导致我做项目三的时候，视频课是刷完了，但是可能有些细节不记得，想回看的时候却找很久，不方便。然后我开始做的时候甚至感觉自己知道了流程，但是不知道每个流程的具体意义，可视化不知道选择哪些可视化图表来帮助自己达到自己的目的，这个当然也和我的基础不够扎实有关，什么时候用哪种可视化这个也需要总结一下才可以。这些都是需要针对性去客服的。
+
+## 过程中成功的发现部分
+   然后这个探索的过程开始理解后会变得有意思很多，因为自己突然感觉自己可以从数据集中比较深入的理解和探索一样事务，是很有意思的。现在对红酒也理解很多了，挺有意思的。这次探索过程中发现了很多有意思的东西。  
+比如 ：  
+1.发现了红酒含糖不同可以分成 干型，半干型，半甜型，甜型的四种红酒类型  
+2.发现了大部分红酒都是 属于干型的，然后红酒多是品尝起来有酸味的  
+3.发现红酒中需要充SO2，用来让红酒更好的发酵，和防腐作用（查资料）
+4.然后还发现 一般而言，红酒中的alcohol, ,citric.acid,sulphates 越多，volatile.acidity越少，红酒的品质酒越高。
+
+## 未来如何进一步丰富分析内容和提高报告质量  
+因为暂时对线性模型的建立和线性模型不太了解，所以这次的分析报告里面并没有建立线性模型。后续改进的化，可以根据探索的结果建立信星模型，方便更好的预测红酒品质。
+
