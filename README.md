@@ -5,3 +5,4 @@
 + 项目一：检验心理学现象（python）
 + 项目二：数据清洗 （python）
 + 项目三：红酒数据集探索性数据分析EDA（R）  
++ 项目四：Tableau创作一个故事（Tableau 项目四的项目展示在线上 https://public.tableau.com/views/story_v1_15636122855150/story_v1?:embed=y&:display_count=yes&publish=yes&:origin=viz_share_link)
